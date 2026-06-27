@@ -2,7 +2,7 @@
 
 A financial independence simulation dashboard that models FIRE timelines, required investments, portfolio growth, and scenario-based tradeoffs using compound growth calculations and interactive visualizations — now with inflation-adjusted projections and a conservative/base/optimistic return range.
 
-[Link](https://fire-gap-tracker.vercel.app/)
+**[Live demo →](https://fire-gap-tracker.vercel.app/)**
 
 **Know your number. Know the gap.**
 
@@ -37,7 +37,7 @@ FIRE Gap Tracker is built and described as a **financial independence simulation
   - **FIRE number, future dollars** — what that same lifestyle is projected to cost by your target FIRE age, after inflation.
 - **Conservative / base / optimistic return paths** — every timeline (years to FIRE, estimated FIRE age) is calculated three times: at your expected return minus 2 points, at your expected return exactly, and at your expected return plus 2 points. Returns are floored at 0% for the conservative and base paths so a low input doesn't get pushed into a confusing more-negative number.
 - **FIRE age range cards** — conservative, base, and optimistic FIRE ages displayed side by side, each showing "Not reached" instead of a broken or misleadingly precise number when a path doesn't cross the FIRE number within 100 years.
-- **Multi-line growth chart** — conservative, base, and optimistic portfolio paths plotted together against a dashed gold line showing the inflating FIRE number in future dollars, with a legend and mobile-readable labels.
+- **Multi-line growth chart** — conservative (orange, dashed), base (blue, solid, thicker), and optimistic (green, lightly dotted) portfolio paths plotted together against a dashed purple-gray line showing the inflating FIRE number in future dollars. A custom tooltip labels every line by name and color so it's always clear which value belongs to which path. Colors are shared between the chart and the FIRE age range cards below it, so a line and its matching card are never ambiguous.
 - **"What Moves the Needle"** — three dynamic, real-calculation comparisons: investing $500/month more, reducing annual expenses by $5,000, and modeling returns 2% lower. Every number here is computed live from your actual inputs, not hardcoded.
 - **Scenario persistence** — inputs autosave to `localStorage` as you type, so refreshing the page never loses your plan. Scenarios saved before Phase 1 (missing an inflation rate) load cleanly and default to 3%.
 - **Reset to sample** — one click restores realistic example values.
@@ -74,6 +74,26 @@ Output is written to `dist/`. Preview the production build locally with:
 ```bash
 npm run preview
 ```
+
+## Testing
+
+Pure calculation, validation, and storage-migration logic is covered by [Vitest](https://vitest.dev/):
+
+```bash
+npm test          # run once
+npm run test:watch  # watch mode while developing
+```
+
+The suite focuses on the parts of the app where a subtle bug would be easy to miss visually but expensive to get wrong — the inflation math, the conservative/base/optimistic ordering, and old-data migration. It covers:
+
+- Inflation compounding monthly (not a single end-of-period multiply), at both 0% and 3%
+- 0% expected return (linear accumulation, no division by zero)
+- Very high expenses relative to assets/contribution (correctly reported as unreachable, not broken)
+- Very low monthly investment (still finds a — long — timeline rather than failing)
+- "FIRE not reached" within the 100-year search cap, with `null` fields rather than a misleading number
+- The required-monthly-investment solver round-tripping back to the exact inflated target it solved for
+- Old saved/imported scenarios missing `inflationPct` defaulting to 3% instead of crashing or failing validation
+- That conservative/base/optimistic results stay internally consistent — conservative is never faster than base, base is never faster than optimistic, for the same inputs
 
 ## Calculation formulas
 
@@ -147,14 +167,6 @@ With a fixed target this has a clean algebraic solution. Once the target itself 
 
 Today's dollars show the value in current spending power. Future dollars include inflation and estimate how much the same lifestyle may cost later. The dashboard labels every figure with one or the other so it's never ambiguous which one you're looking at.
 
-## Screenshots
-
-_Add screenshots of the dashboard here before publishing — e.g. a full-page desktop view, the multi-path growth chart, and a mobile input-panel view._
-
-`docs/screenshot-desktop.png`
-`docs/screenshot-mobile.png`
-`docs/screenshot-chart.png`
-
 ## Deployment
 
 This is a static site with no backend — it deploys anywhere that serves static files.
@@ -179,10 +191,11 @@ This is a static site with no backend — it deploys anywhere that serves static
 - **Inflation grows expenses monthly, compounding over the full projection.** It is never applied as a single multiplication at the end. The FIRE number itself is therefore a moving target in every timeline search.
 - **Conservative and base return paths floor at 0%.** A user entering a very low expected return won't see the conservative path go further negative — it's product-level flooring, not a math necessity (the underlying engine handles negative returns safely on its own).
 - **Returns within each path are a single constant annual rate**, compounded monthly. Real markets are far lumpier than this, and don't move in three discrete lanes — the chart's footer text says as much.
-- **Annual income is collected but not used** in any calculation — it's there for the user's own reference only, per the spec.
+- **Annual income is collected but not used** in any calculation. It's optional and is not used until a future phase — the input panel says so directly rather than leaving it ambiguous.
 - **"Years to FIRE" uses a 100-year search cap per return path.** Beyond that, each path independently reports "Not reached" rather than searching indefinitely.
 - **The required-monthly-investment figure can floor at $0** but is also flagged as potentially unreachable if no contribution amount, however large, would close the (inflating) gap by the target age.
 - **Old data migrates forward automatically.** Any saved or imported scenario missing an inflation rate is treated as 3% rather than rejected.
+- **There is exactly one month-by-month projection builder used for charting** (`buildCombinedProjection`), shared by all three return paths and the FIRE target line. Per-path timeline searches (`calculateFireAgeForPath`) compute their own years-to-FIRE independently but do not build a separate projection array — this keeps the chart, the FIRE age cards, and the metric cards from ever silently disagreeing with each other.
 
 ## Limitations
 
@@ -216,8 +229,8 @@ src/
     InputPanel.tsx        — all eight (+1 optional) input fields, including inflation rate
     MetricCard.tsx          — reusable output card + FIRE gap summary card
     ProgressBar.tsx         — progress bar toward today's-dollars FIRE number
-    GrowthChart.tsx          — Recharts multi-line chart: conservative/base/optimistic + inflating FIRE target
-    ReturnPathCards.tsx      — conservative / base / optimistic FIRE age cards
+    GrowthChart.tsx          — Recharts multi-line chart: conservative/base/optimistic + inflating FIRE target, with a custom labeled tooltip
+    ReturnPathCards.tsx      — conservative / base / optimistic FIRE age cards, color-matched to the chart
     WhatMovesNeedle.tsx      — the three dynamic scenario comparison cards
     ScenarioActions.tsx      — reset / export / import controls
   lib/
@@ -225,6 +238,8 @@ src/
     formatters.ts            — currency / percent / years / path-FIRE-age display formatting
     validation.ts            — input validation rules, including inflation rate
     scenarioStorage.ts        — localStorage autosave + JSON export/import + old-data migration
+    returnPathStyles.ts        — single source of truth for return-path colors/line styles, shared by the chart and the cards
+    __tests__/                 — Vitest unit tests for fireCalculations, validation, and scenarioStorage
   types/
     fire.ts                  — FireInputs, FireResults, ReturnPathResult, CombinedProjectionPoint, etc.
   App.tsx

@@ -338,8 +338,11 @@ export function calculateReturnRangePaths(expectedReturnPct: number): Record<Ret
 }
 
 /**
- * Runs the full timeline search + projection for ONE return path, against
- * the same inflating FIRE number used everywhere else.
+ * Runs the full timeline search for ONE return path, against the same
+ * inflating FIRE number used everywhere else. Does not build a month-by-
+ * month projection of its own — the chart renders all three paths from
+ * buildCombinedProjection's single shared series instead (see below), so
+ * there's exactly one place that walks the months for charting purposes.
  */
 export function calculateFireAgeForPath(
   path: ReturnPathKey,
@@ -358,43 +361,46 @@ export function calculateFireAgeForPath(
   const yearsToFire = timeline.months !== null ? timeline.months / 12 : null;
   const estimatedFireAge = yearsToFire !== null ? inputs.currentAge + yearsToFire : null;
 
-  const projectionMonths =
-    timeline.status === "on-track" && timeline.months !== null
-      ? Math.min(timeline.months + 12, MAX_YEARS_TO_SEARCH * 12)
-      : Math.max((inputs.targetFireAge - inputs.currentAge) * 12, 30 * 12);
-
-  const projection = generateProjection(
-    inputs.currentAge,
-    inputs.currentAssets,
-    inputs.monthlyInvestment,
-    annualReturnPct,
-    projectionMonths,
-  );
-
   return {
     path,
     annualReturnPct,
     timelineStatus: timeline.status,
     yearsToFire,
     estimatedFireAge,
-    projection,
   };
 }
 
 /**
  * Builds the combined chart series: all three return paths plus the
  * inflating FIRE target, aligned month-by-month so Recharts can plot all
- * four lines against one shared X axis. Runs out to the longest of the
- * three individual projections so no line gets cut off early.
+ * four lines against one shared X axis.
+ *
+ * The time horizon is derived directly from each path's own timeline
+ * result (yearsToFire when on-track, or a sensible fallback when a path
+ * never reaches FIRE) rather than from a separately-built projection array
+ * — there is exactly one month-by-month walk in the whole app for charting
+ * purposes, this one, so the three lines and the FIRE-age cards can never
+ * silently disagree about how far out they're each looking.
  */
 function buildCombinedProjection(
   inputs: FireInputs,
   returnPaths: Record<ReturnPathKey, ReturnPathResult>,
 ): CombinedProjectionPoint[] {
+  const horizonMonthsForPath = (result: ReturnPathResult): number => {
+    if (result.timelineStatus === "on-track" && result.yearsToFire !== null) {
+      // Run a little past the FIRE-crossing point so the chart visibly
+      // shows the line clearing the target, not stopping right at it.
+      return Math.min(Math.round(result.yearsToFire * 12) + 12, MAX_YEARS_TO_SEARCH * 12);
+    }
+    // Already-FI or unreachable: fall back to the user's own target horizon
+    // (or a minimum 30 years) so the chart still has a sensible span to draw.
+    return Math.max((inputs.targetFireAge - inputs.currentAge) * 12, 30 * 12);
+  };
+
   const longestMonths = Math.max(
-    returnPaths.conservative.projection.length - 1,
-    returnPaths.base.projection.length - 1,
-    returnPaths.optimistic.projection.length - 1,
+    horizonMonthsForPath(returnPaths.conservative),
+    horizonMonthsForPath(returnPaths.base),
+    horizonMonthsForPath(returnPaths.optimistic),
   );
 
   const points: CombinedProjectionPoint[] = [];

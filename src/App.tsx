@@ -62,21 +62,21 @@ function App() {
               <>
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <MetricCard
-                    label="FIRE number — today's $"
+                    label="FIRE number (today's dollars)"
                     value={formatCurrency(results.fireNumberToday)}
-                    subtext="What you'd need if you retired today."
+                    subtext="What you'd need if you retired today, in today's spending power."
                     accent="ink"
                   />
                   <MetricCard
-                    label="FIRE number — future $"
+                    label="FIRE number (future dollars)"
                     value={formatCurrency(results.fireNumberAtTargetAge)}
-                    subtext={`At age ${Math.round(inputs.targetFireAge)}, after ${inputs.inflationPct}% annual inflation.`}
+                    subtext={`What it's projected to cost at age ${Math.round(inputs.targetFireAge)}, after ${inputs.inflationPct}% annual inflation.`}
                     accent="ember"
                   />
                   <MetricCard
                     label="Current progress"
                     value={formatPercent(results.progressPct)}
-                    subtext="Against today's-dollars FIRE number."
+                    subtext="Current invested assets ÷ today's-dollars FIRE number."
                     accent="moss"
                   />
 
@@ -85,7 +85,7 @@ function App() {
                   <MetricCard
                     label="Required monthly investment"
                     value={formatCurrency(results.requiredMonthlyInvestment)}
-                    subtext={`Inflation-adjusted, to reach FIRE by age ${Math.round(inputs.targetFireAge)}.${
+                    subtext={`To reach FIRE by age ${Math.round(inputs.targetFireAge)}, against the inflation-adjusted (future-dollars) target.${
                       !results.requiredContributionReachable ? " Not achievable at any contribution level." : ""
                     }`}
                     accent="gold"

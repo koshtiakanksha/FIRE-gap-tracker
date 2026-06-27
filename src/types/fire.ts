@@ -57,7 +57,13 @@ export type FireTimelineStatus = "on-track" | "already-fi" | "unreachable";
 /** The three return assumptions shown side by side on the chart and in FIRE-age cards. */
 export type ReturnPathKey = "conservative" | "base" | "optimistic";
 
-/** Result of running the full FIRE timeline search for one return assumption. */
+/**
+ * Result of running the full FIRE timeline search for one return assumption.
+ * Deliberately does NOT carry its own month-by-month projection — the chart
+ * renders all three paths from the single combinedProjection series instead,
+ * so there's exactly one projection-building code path, not two that could
+ * silently drift apart.
+ */
 export interface ReturnPathResult {
   path: ReturnPathKey;
   /** The annual return actually used for this path, after flooring at 0% (see calculateReturnRangePaths). */
@@ -65,7 +71,6 @@ export interface ReturnPathResult {
   timelineStatus: FireTimelineStatus;
   yearsToFire: number | null;
   estimatedFireAge: number | null;
-  projection: ProjectionPoint[];
 }
 
 /** Everything derived from FireInputs. Nothing here is ever hand-edited by the UI. */
