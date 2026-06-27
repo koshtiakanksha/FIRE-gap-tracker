@@ -43,3 +43,18 @@ export function formatAge(value: number | null): string {
   if (value === null || !isFinite(value)) return "—";
   return Math.round(value).toString();
 }
+
+/**
+ * Formats a return-path FIRE age, honoring the three real statuses a path
+ * can land in: already there, on track to a specific age, or not reached
+ * within the 100-year search window.
+ */
+export function formatPathFireAge(
+  status: "on-track" | "already-fi" | "unreachable",
+  estimatedFireAge: number | null,
+  currentAge: number,
+): string {
+  if (status === "already-fi") return formatAge(currentAge);
+  if (status === "unreachable") return "Not reached";
+  return formatAge(estimatedFireAge);
+}

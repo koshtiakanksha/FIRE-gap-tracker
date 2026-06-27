@@ -1,42 +1,49 @@
 import {
   ResponsiveContainer,
-  AreaChart,
+  ComposedChart,
   Area,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
+  Legend,
 } from "recharts";
-import type { ProjectionPoint } from "../types/fire";
+import type { CombinedProjectionPoint } from "../types/fire";
 import { formatCurrencyCompact, formatCurrency } from "../lib/formatters";
 
 interface GrowthChartProps {
-  projection: ProjectionPoint[];
-  fireNumber: number;
+  combinedProjection: CombinedProjectionPoint[];
   currentAge: number;
 }
 
-export default function GrowthChart({ projection, fireNumber, currentAge }: GrowthChartProps) {
+const SERIES_LABELS: Record<string, string> = {
+  conservative: "Conservative",
+  base: "Base",
+  optimistic: "Optimistic",
+  fireTarget: "FIRE number (future $)",
+};
+
+export default function GrowthChart({ combinedProjection, currentAge }: GrowthChartProps) {
   // Down-sample for the chart so we're not plotting hundreds of points on
-  // mobile, while keeping the line visually smooth.
-  const sampled = downsample(projection, 80);
+  // mobile, while keeping every line visually smooth.
+  const sampled = downsample(combinedProjection, 90);
 
   return (
     <div className="rounded-xl border border-paper-dim bg-white p-5 shadow-sm">
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-slate">Projected portfolio growth</p>
         <span className="hidden items-center gap-1.5 text-xs text-slate sm:flex">
           <span className="inline-block h-0.5 w-4 bg-gold" />
-          FIRE number
+          FIRE number (future $, inflation-adjusted)
         </span>
       </div>
-      <div className="h-72 w-full sm:h-80">
+      <div className="h-80 w-full sm:h-96">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={sampled} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
+          <ComposedChart data={sampled} margin={{ top: 16, right: 12, left: 0, bottom: 0 }}>
             <defs>
-              <linearGradient id="portfolioFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#5b7b6b" stopOpacity={0.28} />
+              <linearGradient id="baseFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#5b7b6b" stopOpacity={0.25} />
                 <stop offset="100%" stopColor="#5b7b6b" stopOpacity={0.02} />
               </linearGradient>
             </defs>
@@ -58,7 +65,7 @@ export default function GrowthChart({ projection, fireNumber, currentAge }: Grow
               width={56}
             />
             <Tooltip
-              formatter={(value) => [formatCurrency(Number(value)), "Portfolio value"]}
+              formatter={(value, name) => [formatCurrency(Number(value)), SERIES_LABELS[String(name)] ?? String(name)]}
               labelFormatter={(age) => `Age ${Math.round(Number(age))}`}
               contentStyle={{
                 borderRadius: 10,
@@ -67,44 +74,72 @@ export default function GrowthChart({ projection, fireNumber, currentAge }: Grow
                 fontFamily: "Inter, sans-serif",
               }}
             />
-            <ReferenceLine
-              y={isFinite(fireNumber) ? fireNumber : undefined}
+            <Legend
+              formatter={(value) => SERIES_LABELS[String(value)] ?? String(value)}
+              wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+            />
+            {/* Base case gets a soft fill since it's the "headline" path; conservative/optimistic are lines only, so the fill doesn't visually compete with them. */}
+            <Area
+              type="monotone"
+              dataKey="base"
+              name="base"
+              stroke="#5b7b6b"
+              strokeWidth={2.5}
+              fill="url(#baseFill)"
+              isAnimationActive
+              animationDuration={600}
+            />
+            <Line
+              type="monotone"
+              dataKey="conservative"
+              name="conservative"
+              stroke="#5c6b7a"
+              strokeWidth={1.75}
+              strokeDasharray="5 4"
+              dot={false}
+              isAnimationActive
+              animationDuration={600}
+            />
+            <Line
+              type="monotone"
+              dataKey="optimistic"
+              name="optimistic"
+              stroke="#5b7b6b"
+              strokeWidth={1.75}
+              strokeOpacity={0.55}
+              dot={false}
+              isAnimationActive
+              animationDuration={600}
+            />
+            <Line
+              type="monotone"
+              dataKey="fireTarget"
+              name="fireTarget"
               stroke="#c9a24b"
               strokeWidth={1.5}
               strokeDasharray="4 4"
-              label={{
-                value: "FIRE number",
-                position: "insideTopRight",
-                fontSize: 11,
-                fill: "#c9a24b",
-                fontWeight: 600,
-              }}
-            />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="#5b7b6b"
-              strokeWidth={2.5}
-              fill="url(#portfolioFill)"
-              isAnimationActive={true}
+              dot={false}
+              isAnimationActive
               animationDuration={600}
             />
-          </AreaChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <p className="mt-2 text-xs text-slate sm:hidden">Dashed gold line marks your FIRE number.</p>
+      <p className="mt-2 text-xs text-slate sm:hidden">Dashed gold line marks your inflation-adjusted FIRE number.</p>
       <p className="mt-2 text-xs text-slate">
-        Starting at age {Math.round(currentAge)}, assuming steady monthly contributions and a constant annual
-        return. Real markets move in fits and starts — this line shows the average path, not a guarantee.
+        Starting at age {Math.round(currentAge)}. The shaded line is your base-case return; the lighter lines show a
+        conservative path (2 points lower) and an optimistic path (2 points higher). The dashed gold line is your
+        FIRE number restated in future dollars — it climbs because expenses are assumed to inflate, not because the
+        bar moves arbitrarily. Real markets move in fits and starts; these are average paths, not guarantees.
       </p>
     </div>
   );
 }
 
-function downsample(points: ProjectionPoint[], maxPoints: number): ProjectionPoint[] {
+function downsample(points: CombinedProjectionPoint[], maxPoints: number): CombinedProjectionPoint[] {
   if (points.length <= maxPoints) return points;
   const step = Math.ceil(points.length / maxPoints);
-  const result: ProjectionPoint[] = [];
+  const result: CombinedProjectionPoint[] = [];
   for (let i = 0; i < points.length; i += step) {
     result.push(points[i]);
   }
