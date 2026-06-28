@@ -5,6 +5,7 @@ import {
   parseScenarioJson,
   SAMPLE_INPUTS,
   DEFAULT_INFLATION_PCT,
+  DEFAULT_VOLATILITY_PCT,
 } from "../scenarioStorage";
 import type { FireInputs } from "../../types/fire";
 
@@ -62,6 +63,43 @@ describe("localStorage autosave / load round-trip", () => {
     expect(loaded?.currentAge).toBe(35); // everything else carries through unchanged
   });
 
+  it("defaults volatilityPct to 15% for data saved before Phase 2 added the field", () => {
+    const phase1ShapeData = {
+      currentAge: 35,
+      targetFireAge: 55,
+      currentAssets: 100000,
+      annualExpenses: 50000,
+      monthlyInvestment: 2000,
+      expectedReturnPct: 6,
+      safeWithdrawalRatePct: 4,
+      inflationPct: 3, // Phase 1 field present
+      // volatilityPct intentionally absent — simulates a pre-Phase-2 save.
+    };
+    window.localStorage.setItem("fire-gap-tracker:scenario", JSON.stringify(phase1ShapeData));
+
+    const loaded = loadInputsFromLocalStorage();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.volatilityPct).toBe(DEFAULT_VOLATILITY_PCT);
+    expect(loaded?.inflationPct).toBe(3); // existing Phase 1 field untouched
+  });
+
+  it("defaults BOTH inflationPct and volatilityPct when a Phase-0 scenario is missing both", () => {
+    const phase0ShapeData = {
+      currentAge: 35,
+      targetFireAge: 55,
+      currentAssets: 100000,
+      annualExpenses: 50000,
+      monthlyInvestment: 2000,
+      expectedReturnPct: 6,
+      safeWithdrawalRatePct: 4,
+    };
+    window.localStorage.setItem("fire-gap-tracker:scenario", JSON.stringify(phase0ShapeData));
+
+    const loaded = loadInputsFromLocalStorage();
+    expect(loaded?.inflationPct).toBe(DEFAULT_INFLATION_PCT);
+    expect(loaded?.volatilityPct).toBe(DEFAULT_VOLATILITY_PCT);
+  });
+
   it("returns null (not a crash) for corrupted JSON in storage", () => {
     window.localStorage.setItem("fire-gap-tracker:scenario", "{not valid json");
     expect(loadInputsFromLocalStorage()).toBeNull();
@@ -109,6 +147,25 @@ describe("JSON import — parseScenarioJson", () => {
     }
   });
 
+  it("defaults volatilityPct to 15% when importing a Phase 1 file that predates the field", () => {
+    const phase1Export = {
+      currentAge: 40,
+      targetFireAge: 60,
+      currentAssets: 200000,
+      annualExpenses: 60000,
+      monthlyInvestment: 2500,
+      expectedReturnPct: 6,
+      safeWithdrawalRatePct: 4,
+      inflationPct: 3,
+    };
+    const result = parseScenarioJson(JSON.stringify(phase1Export));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.inputs.volatilityPct).toBe(DEFAULT_VOLATILITY_PCT);
+      expect(result.inputs.inflationPct).toBe(3);
+    }
+  });
+
   it("rejects invalid JSON with a friendly error, not a thrown exception", () => {
     const result = parseScenarioJson("{not valid json at all");
     expect(result.success).toBe(false);
@@ -132,9 +189,10 @@ describe("JSON import — parseScenarioJson", () => {
 });
 
 describe("SAMPLE_INPUTS", () => {
-  it("is itself a valid, complete FireInputs object including inflationPct", () => {
+  it("is itself a valid, complete FireInputs object including inflationPct and volatilityPct", () => {
     const sample: FireInputs = SAMPLE_INPUTS;
     expect(sample.inflationPct).toBe(3);
+    expect(sample.volatilityPct).toBe(15);
     expect(Number.isFinite(sample.currentAge)).toBe(true);
     expect(sample.targetFireAge).toBeGreaterThan(sample.currentAge);
   });

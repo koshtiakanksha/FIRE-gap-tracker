@@ -23,6 +23,7 @@ const baseInputs: FireInputs = {
   expectedReturnPct: 7,
   safeWithdrawalRatePct: 4,
   inflationPct: 3,
+  volatilityPct: 15,
 };
 
 describe("calculateFireNumber", () => {
