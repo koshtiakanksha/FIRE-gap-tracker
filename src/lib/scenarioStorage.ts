@@ -12,6 +12,13 @@ import type { FireInputs, ScenarioFile } from "../types/fire";
 const STORAGE_KEY = "fire-gap-tracker:scenario";
 const SCHEMA_VERSION = 1;
 
+/**
+ * Default inflation rate applied whenever it's missing — either because a
+ * scenario was saved before Phase 1 added this field, or because an
+ * imported JSON file predates it. Keeps old saved data from ever breaking.
+ */
+export const DEFAULT_INFLATION_PCT = 3;
+
 /** Realistic starter values shown on first load and on "Reset to sample". */
 export const SAMPLE_INPUTS: FireInputs = {
   currentAge: 30,
@@ -22,8 +29,20 @@ export const SAMPLE_INPUTS: FireInputs = {
   expectedReturnPct: 7,
   safeWithdrawalRatePct: 4,
   annualIncome: 95000,
-  inflationPct: undefined,
+  inflationPct: DEFAULT_INFLATION_PCT,
 };
+
+/**
+ * Fills in a missing inflation rate on older saved/imported data, so a
+ * scenario created before Phase 1 still loads cleanly instead of failing
+ * validation for a field the user never had a chance to set.
+ */
+function withInflationDefault(inputs: FireInputs): FireInputs {
+  if (typeof inputs.inflationPct === "number" && isFinite(inputs.inflationPct)) {
+    return inputs;
+  }
+  return { ...inputs, inflationPct: DEFAULT_INFLATION_PCT };
+}
 
 /** Saves the current inputs to localStorage. Fails silently but logs — this is a non-critical convenience feature. */
 export function saveInputsToLocalStorage(inputs: FireInputs): void {
@@ -41,7 +60,7 @@ export function loadInputsFromLocalStorage(): FireInputs | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!looksLikeFireInputs(parsed)) return null;
-    return parsed as FireInputs;
+    return withInflationDefault(parsed as FireInputs);
   } catch (err) {
     console.warn("Could not load saved scenario from localStorage:", err);
     return null;
@@ -107,10 +126,16 @@ export function parseScenarioJson(text: string): ImportResult {
     };
   }
 
-  return { success: true, inputs: candidateInputs as FireInputs };
+  return { success: true, inputs: withInflationDefault(candidateInputs as FireInputs) };
 }
 
-/** Structural check that an unknown value has the required FireInputs shape and types. */
+/**
+ * Structural check that an unknown value has the required FireInputs shape
+ * and types. Deliberately does NOT require inflationPct here — scenarios
+ * exported before Phase 1 won't have it, and withInflationDefault() fills
+ * it in right after this check passes, so old files import cleanly instead
+ * of being rejected for a field that didn't exist yet when they were saved.
+ */
 function looksLikeFireInputs(value: unknown): value is FireInputs {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;

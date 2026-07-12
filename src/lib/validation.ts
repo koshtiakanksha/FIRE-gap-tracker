@@ -49,8 +49,12 @@ export function validateFireInputs(inputs: FireInputs): ValidationError[] {
     errors.push({ field: "annualIncome", message: "Annual income can't be negative." });
   }
 
-  if (inputs.inflationPct !== undefined && (!isFinite(inputs.inflationPct) || inputs.inflationPct < 0)) {
-    errors.push({ field: "inflationPct", message: "Inflation can't be negative." });
+  if (!isFinite(inputs.inflationPct)) {
+    errors.push({ field: "inflationPct", message: "Inflation rate is required — enter a value between 0% and 10%." });
+  } else if (inputs.inflationPct < 0) {
+    errors.push({ field: "inflationPct", message: "Inflation rate can't be negative." });
+  } else if (inputs.inflationPct > 10) {
+    errors.push({ field: "inflationPct", message: "Inflation rate should be 10% or less." });
   }
 
   return errors;

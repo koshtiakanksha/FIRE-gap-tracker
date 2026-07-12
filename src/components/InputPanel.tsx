@@ -14,6 +14,7 @@ interface FieldConfig {
   suffix?: string;
   step?: number;
   min?: number;
+  max?: number;
 }
 
 const requiredFields: FieldConfig[] = [
@@ -24,6 +25,7 @@ const requiredFields: FieldConfig[] = [
   { key: "monthlyInvestment", label: "Monthly investment", helperText: "How much you invest each month right now.", prefix: "$", step: 50, min: 0 },
   { key: "expectedReturnPct", label: "Expected annual return", helperText: "Long-run average, after fees. Many use 6–8%.", suffix: "%", step: 0.5 },
   { key: "safeWithdrawalRatePct", label: "Safe withdrawal rate", helperText: "Annual % of your portfolio you plan to withdraw. 4% is a common default.", suffix: "%", step: 0.1, min: 0.1 },
+  { key: "inflationPct", label: "Inflation rate", helperText: "Used to grow your expenses over time. 3% is a common long-run estimate.", suffix: "%", step: 0.1, min: 0, max: 10 },
 ];
 
 const optionalFields: FieldConfig[] = [
@@ -46,7 +48,7 @@ export default function InputPanel({ inputs, errors, onChange }: InputPanelProps
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl font-semibold text-ink">Your numbers</h2>
-        <p className="mt-1 text-sm text-slate">Seven inputs. That's the whole plan.</p>
+        <p className="mt-1 text-sm text-slate">Eight inputs. That's the whole plan.</p>
       </div>
 
       <div className="space-y-4">
@@ -77,8 +79,9 @@ export default function InputPanel({ inputs, errors, onChange }: InputPanelProps
 
           <div className="rounded-lg bg-paper-dim/60 px-3 py-2.5">
             <p className="text-xs text-slate">
-              <span className="font-medium text-ink">Inflation</span> isn't factored into these projections yet.
-              All figures are shown in today's dollars. We'd rather leave it out than fake it.
+              <span className="font-medium text-ink">Today's vs. future dollars:</span> today's dollars show value
+              in current spending power. Future dollars include inflation and estimate how much the same lifestyle
+              may cost later.
             </p>
           </div>
         </div>
@@ -119,6 +122,7 @@ function FieldInput({
           inputMode="decimal"
           step={field.step ?? 1}
           min={field.min}
+          max={field.max}
           value={displayValue}
           onChange={(e) => onChange(e.target.value)}
           placeholder={allowEmpty ? "Optional" : undefined}

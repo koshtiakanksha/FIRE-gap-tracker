@@ -18,11 +18,15 @@ export interface FireInputs {
   safeWithdrawalRatePct: number;
   /** Optional. Not used in any calculation yet — see lib/fireCalculations.ts. */
   annualIncome?: number;
-  /** Optional. Disabled in the MVP; see lib/fireCalculations.ts for why. */
-  inflationPct?: number;
+  /**
+   * Whole-number percent, e.g. 3 means 3%. Required as of Phase 1 — every
+   * projection now grows expenses (and the FIRE number) with inflation
+   * rather than treating it as a disabled, decorative field.
+   */
+  inflationPct: number;
 }
 
-/** One point along the projected portfolio growth line. */
+/** One point along a single projected portfolio growth line. */
 export interface ProjectionPoint {
   /** Months from today. */
   month: number;
@@ -32,26 +36,66 @@ export interface ProjectionPoint {
   value: number;
 }
 
+/**
+ * One point along the combined chart series, carrying all three return
+ * paths plus the (inflation-growing) FIRE target for that same month.
+ * This is what GrowthChart.tsx actually plots.
+ */
+export interface CombinedProjectionPoint {
+  month: number;
+  age: number;
+  conservative: number;
+  base: number;
+  optimistic: number;
+  /** The FIRE number at this point in time, in future dollars. */
+  fireTarget: number;
+}
+
 /** Status of the "years to FIRE" calculation — three real-world cases. */
 export type FireTimelineStatus = "on-track" | "already-fi" | "unreachable";
 
+/** The three return assumptions shown side by side on the chart and in FIRE-age cards. */
+export type ReturnPathKey = "conservative" | "base" | "optimistic";
+
+/** Result of running the full FIRE timeline search for one return assumption. */
+export interface ReturnPathResult {
+  path: ReturnPathKey;
+  /** The annual return actually used for this path, after flooring at 0% (see calculateReturnRangePaths). */
+  annualReturnPct: number;
+  timelineStatus: FireTimelineStatus;
+  yearsToFire: number | null;
+  estimatedFireAge: number | null;
+  projection: ProjectionPoint[];
+}
+
 /** Everything derived from FireInputs. Nothing here is ever hand-edited by the UI. */
 export interface FireResults {
-  fireNumber: number;
+  /** FIRE number in today's dollars — unaffected by inflation, the original spec's formula. */
+  fireNumberToday: number;
+  /** FIRE number restated in future dollars at the user's target FIRE age, after inflation. */
+  fireNumberAtTargetAge: number;
   progressPct: number;
+
+  /** Base-case timeline (expected return, exactly as entered). Kept as the "headline" timeline. */
   timelineStatus: FireTimelineStatus;
   /** Null when status is "already-fi" or "unreachable". */
   yearsToFire: number | null;
   /** Null when status is "already-fi" or "unreachable". */
   estimatedFireAge: number | null;
-  /** Dollar gap remaining to the FIRE number. Zero if already there. */
+
+  /** Dollar gap remaining to today's-dollars FIRE number. Zero if already there. */
   fireGap: number;
-  /** Monthly investment required to hit the user's chosen target age. */
+
+  /** Monthly investment required to hit the user's chosen target age, in today's dollars. */
   requiredMonthlyInvestment: number;
   /** Whether the required contribution is even achievable in the years available. */
   requiredContributionReachable: boolean;
-  /** Full growth projection used to draw the chart. */
-  projection: ProjectionPoint[];
+
+  /** Conservative / base / optimistic results, each a full timeline search at a different return. */
+  returnPaths: Record<ReturnPathKey, ReturnPathResult>;
+
+  /** Combined chart series: all three paths plus the inflating FIRE target, aligned by month. */
+  combinedProjection: CombinedProjectionPoint[];
 }
 
 /** One "What Moves the Needle" comparison card. */

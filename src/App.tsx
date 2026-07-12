@@ -3,12 +3,13 @@ import InputPanel from "./components/InputPanel";
 import MetricCard, { GapSummaryCard } from "./components/MetricCard";
 import ProgressBar from "./components/ProgressBar";
 import GrowthChart from "./components/GrowthChart";
+import ReturnPathCards from "./components/ReturnPathCards";
 import WhatMovesNeedle from "./components/WhatMovesNeedle";
 import ScenarioActions from "./components/ScenarioActions";
 import type { FireInputs, FireResults } from "./types/fire";
 import { calculateFireResults, calculateScenarioComparisons } from "./lib/fireCalculations";
 import { validateFireInputs } from "./lib/validation";
-import { formatAge, formatCurrency, formatPercent, formatYears } from "./lib/formatters";
+import { formatCurrency, formatPercent } from "./lib/formatters";
 import { loadInputsFromLocalStorage, saveInputsToLocalStorage, SAMPLE_INPUTS } from "./lib/scenarioStorage";
 
 function App() {
@@ -60,59 +61,57 @@ function App() {
             {isValid && results && (
               <>
                 <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <MetricCard label="FIRE number" value={formatCurrency(results.fireNumber)} accent="ink" />
                   <MetricCard
-                    label="Current progress"
-                    value={formatPercent(results.progressPct)}
-                    accent="moss"
-                  />
-                  <MetricCard
-                    label="Years to FIRE"
-                    value={
-                      results.timelineStatus === "already-fi"
-                        ? "0"
-                        : results.timelineStatus === "unreachable"
-                          ? "100+"
-                          : formatYears(results.yearsToFire)
-                    }
-                    subtext={
-                      results.timelineStatus === "unreachable"
-                        ? "Not reachable within 100 years at current assumptions."
-                        : undefined
-                    }
-                    accent={results.timelineStatus === "unreachable" ? "ember" : "ink"}
-                  />
-                  <MetricCard
-                    label="Estimated FIRE age"
-                    value={
-                      results.timelineStatus === "already-fi"
-                        ? formatAge(inputs.currentAge)
-                        : results.timelineStatus === "unreachable"
-                          ? "—"
-                          : formatAge(results.estimatedFireAge)
-                    }
+                    label="FIRE number — today's $"
+                    value={formatCurrency(results.fireNumberToday)}
+                    subtext="What you'd need if you retired today."
                     accent="ink"
                   />
                   <MetricCard
+                    label="FIRE number — future $"
+                    value={formatCurrency(results.fireNumberAtTargetAge)}
+                    subtext={`At age ${Math.round(inputs.targetFireAge)}, after ${inputs.inflationPct}% annual inflation.`}
+                    accent="ember"
+                  />
+                  <MetricCard
+                    label="Current progress"
+                    value={formatPercent(results.progressPct)}
+                    subtext="Against today's-dollars FIRE number."
+                    accent="moss"
+                  />
+
+                  <ProgressBarCard results={results} />
+
+                  <MetricCard
                     label="Required monthly investment"
                     value={formatCurrency(results.requiredMonthlyInvestment)}
-                    subtext={`To reach FIRE by age ${Math.round(inputs.targetFireAge)}.${
-                      !results.requiredContributionReachable ? " Not achievable even at $0 expenses." : ""
+                    subtext={`Inflation-adjusted, to reach FIRE by age ${Math.round(inputs.targetFireAge)}.${
+                      !results.requiredContributionReachable ? " Not achievable at any contribution level." : ""
                     }`}
                     accent="gold"
                   />
-                  <ProgressBarCard results={results} />
 
                   <GapSummaryCard>
                     {results.timelineStatus === "already-fi"
                       ? "You've already crossed your FIRE number — congratulations, you're financially independent by this plan's math."
-                      : `You need ${formatCurrency(results.fireGap)} more to reach financial independence.`}
+                      : `You need ${formatCurrency(results.fireGap)} more (today's dollars) to reach financial independence.`}
                   </GapSummaryCard>
                 </section>
 
-                <GrowthChart
-                  projection={results.projection}
-                  fireNumber={results.fireNumber}
+                <div className="rounded-lg bg-paper-dim/60 px-4 py-3">
+                  <p className="text-xs text-slate">
+                    <span className="font-medium text-ink">Today's dollars</span> show the value in current spending
+                    power. <span className="font-medium text-ink">Future dollars</span> include inflation and
+                    estimate how much the same lifestyle may cost later.
+                  </p>
+                </div>
+
+                <GrowthChart combinedProjection={results.combinedProjection} currentAge={inputs.currentAge} />
+
+                <ReturnPathCards
+                  conservative={results.returnPaths.conservative}
+                  base={results.returnPaths.base}
+                  optimistic={results.returnPaths.optimistic}
                   currentAge={inputs.currentAge}
                 />
 
@@ -155,7 +154,8 @@ function Footer() {
   return (
     <footer className="border-t border-paper-dim">
       <div className="mx-auto max-w-6xl px-4 py-6 text-xs text-slate sm:px-6 lg:px-8">
-        Projections use constant assumptions and don't account for inflation, taxes, or market volatility. Treat
+        Projections grow expenses with inflation and model a conservative/base/optimistic return range, but still
+        don't account for taxes, account types, or real market volatility (no Monte Carlo simulation yet). Treat
         this as a directional planning tool, not a forecast.
       </div>
     </footer>
