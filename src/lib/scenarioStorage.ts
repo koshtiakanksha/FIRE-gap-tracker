@@ -19,6 +19,12 @@ const SCHEMA_VERSION = 1;
  */
 export const DEFAULT_INFLATION_PCT = 3;
 
+/**
+ * Default annual volatility applied whenever it's missing — scenarios saved
+ * before Phase 2 added this field. Same migration pattern as inflation.
+ */
+export const DEFAULT_VOLATILITY_PCT = 15;
+
 /** Realistic starter values shown on first load and on "Reset to sample". */
 export const SAMPLE_INPUTS: FireInputs = {
   currentAge: 30,
@@ -30,18 +36,26 @@ export const SAMPLE_INPUTS: FireInputs = {
   safeWithdrawalRatePct: 4,
   annualIncome: 95000,
   inflationPct: DEFAULT_INFLATION_PCT,
+  volatilityPct: DEFAULT_VOLATILITY_PCT,
 };
 
 /**
- * Fills in a missing inflation rate on older saved/imported data, so a
- * scenario created before Phase 1 still loads cleanly instead of failing
- * validation for a field the user never had a chance to set.
+ * Fills in any missing Phase 1 / Phase 2 fields on older saved/imported
+ * data, so a scenario created before either phase still loads cleanly
+ * instead of failing validation for a field the user never had a chance to
+ * set. Each field defaults independently — a scenario could be missing
+ * just volatilityPct (saved between Phase 1 and Phase 2) just as easily as
+ * missing both.
  */
-function withInflationDefault(inputs: FireInputs): FireInputs {
-  if (typeof inputs.inflationPct === "number" && isFinite(inputs.inflationPct)) {
-    return inputs;
+function withFieldDefaults(inputs: FireInputs): FireInputs {
+  const next = { ...inputs };
+  if (typeof next.inflationPct !== "number" || !isFinite(next.inflationPct)) {
+    next.inflationPct = DEFAULT_INFLATION_PCT;
   }
-  return { ...inputs, inflationPct: DEFAULT_INFLATION_PCT };
+  if (typeof next.volatilityPct !== "number" || !isFinite(next.volatilityPct)) {
+    next.volatilityPct = DEFAULT_VOLATILITY_PCT;
+  }
+  return next;
 }
 
 /** Saves the current inputs to localStorage. Fails silently but logs — this is a non-critical convenience feature. */
@@ -60,7 +74,7 @@ export function loadInputsFromLocalStorage(): FireInputs | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!looksLikeFireInputs(parsed)) return null;
-    return withInflationDefault(parsed as FireInputs);
+    return withFieldDefaults(parsed as FireInputs);
   } catch (err) {
     console.warn("Could not load saved scenario from localStorage:", err);
     return null;
@@ -126,15 +140,16 @@ export function parseScenarioJson(text: string): ImportResult {
     };
   }
 
-  return { success: true, inputs: withInflationDefault(candidateInputs as FireInputs) };
+  return { success: true, inputs: withFieldDefaults(candidateInputs as FireInputs) };
 }
 
 /**
  * Structural check that an unknown value has the required FireInputs shape
- * and types. Deliberately does NOT require inflationPct here — scenarios
- * exported before Phase 1 won't have it, and withInflationDefault() fills
- * it in right after this check passes, so old files import cleanly instead
- * of being rejected for a field that didn't exist yet when they were saved.
+ * and types. Deliberately does NOT require inflationPct or volatilityPct
+ * here — scenarios exported before Phase 1 / Phase 2 won't have them, and
+ * withFieldDefaults() fills them in right after this check passes, so old
+ * files import cleanly instead of being rejected for a field that didn't
+ * exist yet when they were saved.
  */
 function looksLikeFireInputs(value: unknown): value is FireInputs {
   if (typeof value !== "object" || value === null) return false;

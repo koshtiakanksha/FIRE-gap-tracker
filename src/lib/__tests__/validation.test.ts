@@ -11,7 +11,46 @@ const validInputs: FireInputs = {
   expectedReturnPct: 7,
   safeWithdrawalRatePct: 4,
   inflationPct: 3,
+  volatilityPct: 15,
 };
+
+describe("validateFireInputs — volatility (Phase 2)", () => {
+  it("accepts 0% volatility", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: 0 });
+    expect(errors.find((e) => e.field === "volatilityPct")).toBeUndefined();
+  });
+
+  it("accepts the 15% default", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: 15 });
+    expect(errors.find((e) => e.field === "volatilityPct")).toBeUndefined();
+  });
+
+  it("accepts exactly 40% (the upper bound)", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: 40 });
+    expect(errors.find((e) => e.field === "volatilityPct")).toBeUndefined();
+  });
+
+  it("rejects a missing/NaN volatility with a friendly message", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: NaN });
+    const error = errors.find((e) => e.field === "volatilityPct");
+    expect(error).toBeDefined();
+    expect(error?.message).toMatch(/required/i);
+  });
+
+  it("rejects a negative volatility", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: -5 });
+    const error = errors.find((e) => e.field === "volatilityPct");
+    expect(error).toBeDefined();
+    expect(error?.message).toMatch(/negative/i);
+  });
+
+  it("rejects a volatility above 40%", () => {
+    const errors = validateFireInputs({ ...validInputs, volatilityPct: 50 });
+    const error = errors.find((e) => e.field === "volatilityPct");
+    expect(error).toBeDefined();
+    expect(error?.message).toMatch(/40/);
+  });
+});
 
 describe("validateFireInputs — inflation rate", () => {
   it("accepts 0% inflation", () => {

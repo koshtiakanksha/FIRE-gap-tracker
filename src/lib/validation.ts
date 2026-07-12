@@ -57,6 +57,14 @@ export function validateFireInputs(inputs: FireInputs): ValidationError[] {
     errors.push({ field: "inflationPct", message: "Inflation rate should be 10% or less." });
   }
 
+  if (!isFinite(inputs.volatilityPct)) {
+    errors.push({ field: "volatilityPct", message: "Volatility is required — enter a value between 0% and 40%." });
+  } else if (inputs.volatilityPct < 0) {
+    errors.push({ field: "volatilityPct", message: "Volatility can't be negative." });
+  } else if (inputs.volatilityPct > 40) {
+    errors.push({ field: "volatilityPct", message: "Volatility should be 40% or less." });
+  }
+
   return errors;
 }
 

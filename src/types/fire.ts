@@ -24,6 +24,14 @@ export interface FireInputs {
    * rather than treating it as a disabled, decorative field.
    */
   inflationPct: number;
+  /**
+   * Whole-number percent, e.g. 15 means 15%. Added in Phase 2 for the Monte
+   * Carlo simulation — the standard deviation of annual returns around the
+   * expected return. Required (defaults to 15% for old data missing it, the
+   * same migration pattern used for inflationPct in Phase 1). Valid range:
+   * 0% to 40%.
+   */
+  volatilityPct: number;
 }
 
 /** One point along a single projected portfolio growth line. */
@@ -128,4 +136,103 @@ export interface ScenarioFile {
   schemaVersion: 1;
   exportedAt: string;
   inputs: FireInputs;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: Monte Carlo simulation
+// ---------------------------------------------------------------------------
+
+/**
+ * Outcome of a single simulated "life" in the Monte Carlo run: did this
+ * particular random sequence of annual returns cross the (inflating) FIRE
+ * number before the 100-year search cap, and if so, when?
+ */
+export interface MonteCarloRunOutcome {
+  reachedFire: boolean;
+  /** Months to FIRE for this run. Null if never reached within the cap. */
+  monthsToFire: number | null;
+}
+
+/** One point along a Monte Carlo percentile chart path. */
+export interface MonteCarloChartPoint {
+  month: number;
+  age: number;
+  p10: number;
+  p50: number;
+  p90: number;
+  /** The inflating FIRE number in future dollars, same as the deterministic chart's target line. */
+  fireTarget: number;
+}
+
+/** Best/worst-case framing shown alongside the percentile FIRE ages. */
+export type MonteCarloOutcomeLabel = "best-case" | "typical" | "worst-case";
+
+/**
+ * Full summary of a Monte Carlo run — the numbers the Risk & Diagnosis
+ * section actually displays. Built by calculateMonteCarloSummary from the
+ * raw per-run outcomes produced by runMonteCarloSimulation.
+ */
+export interface MonteCarloSummary {
+  numSimulations: number;
+  /** Share of simulated runs (0-100) that reached FIRE by the user's target age. */
+  probabilityOfSuccessPct: number;
+  /** Median (50th percentile) FIRE age across all runs. Null if fewer than half of runs ever reach FIRE. */
+  medianFireAge: number | null;
+  /** 10th percentile FIRE age — a relatively fast/lucky outcome. Null if fewer than 10% of runs reach FIRE. */
+  p10FireAge: number | null;
+  /** 90th percentile FIRE age — a relatively slow/unlucky outcome. Null if fewer than 90% of runs reach FIRE. */
+  p90FireAge: number | null;
+  /** Chart-ready percentile portfolio paths plus the inflating FIRE target. */
+  chartPaths: MonteCarloChartPoint[];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: savings-rate realism
+// ---------------------------------------------------------------------------
+
+export type SavingsRealismLabel = "realistic" | "aggressive" | "very-aggressive" | "likely-unrealistic";
+
+/**
+ * Reads on how much of the user's income their plan requires them to
+ * invest. Only computed when annualIncome is provided — Phase 2 uses
+ * annual income for the first time, but it remains fully optional.
+ */
+export interface SavingsRateRealism {
+  /** Current monthly investment as a % of monthly income. */
+  currentSavingsRatePct: number;
+  /** Required monthly investment (to hit target FIRE age) as a % of monthly income. */
+  requiredSavingsRatePct: number;
+  label: SavingsRealismLabel;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: sensitivity analysis
+// ---------------------------------------------------------------------------
+
+export type SensitivityLeverId =
+  | "invest-more-10pct"
+  | "spend-less-10pct"
+  | "higher-return-1pt"
+  | "lower-swr-half-pt"
+  | "later-target-age";
+
+/** Result of nudging ONE lever and re-running the base-case timeline. */
+export interface SensitivityLeverResult {
+  id: SensitivityLeverId;
+  label: string;
+  /** Short description of exactly what was changed. */
+  description: string;
+  /**
+   * Years the base-case FIRE timeline improves by (positive = sooner,
+   * negative = later, though every lever here is chosen to help). Null
+   * when the comparison can't be made (e.g. already FI on both sides).
+   */
+  yearsImprovement: number | null;
+}
+
+/** Full ranked sensitivity analysis — every lever, ordered by impact. */
+export interface SensitivityAnalysis {
+  leverResults: SensitivityLeverResult[];
+  /** The single biggest lever, or null if no lever could be compared (e.g. already FI). */
+  biggestLever: SensitivityLeverResult | null;
 }

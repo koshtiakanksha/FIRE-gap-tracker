@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { FireInputs, ValidationError } from "../types/fire";
 
 interface InputPanelProps {
@@ -29,10 +30,15 @@ const requiredFields: FieldConfig[] = [
 ];
 
 const optionalFields: FieldConfig[] = [
-  { key: "annualIncome", label: "Annual income", helperText: "Optional — not used in calculations until a future phase. For your own reference only.", prefix: "$", step: 1000, min: 0 },
+  { key: "annualIncome", label: "Annual income", helperText: "Optional — used in the Risk & Diagnosis section below to gauge how aggressive your plan is. Not used elsewhere.", prefix: "$", step: 1000, min: 0 },
+];
+
+const advancedFields: FieldConfig[] = [
+  { key: "volatilityPct", label: "Annual volatility", helperText: "Used only for the Monte Carlo simulation below — how much returns might swing year to year. 15% is a common stock-heavy-portfolio estimate.", suffix: "%", step: 1, min: 0, max: 40 },
 ];
 
 export default function InputPanel({ inputs, errors, onChange }: InputPanelProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const errorFor = (field: keyof FireInputs) => errors.find((e) => e.field === field)?.message;
 
   function handleNumberChange(field: keyof FireInputs, raw: string) {
@@ -48,7 +54,7 @@ export default function InputPanel({ inputs, errors, onChange }: InputPanelProps
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl font-semibold text-ink">Your numbers</h2>
-        <p className="mt-1 text-sm text-slate">Eight inputs. That's the whole plan.</p>
+        <p className="mt-1 text-sm text-slate">Eight inputs drive the plan — income and volatility are optional extras.</p>
       </div>
 
       <div className="space-y-4">
@@ -85,6 +91,31 @@ export default function InputPanel({ inputs, errors, onChange }: InputPanelProps
             </p>
           </div>
         </div>
+      </div>
+
+      <div className="border-t border-paper-dim pt-5">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex w-full items-center justify-between text-left"
+          aria-expanded={showAdvanced}
+        >
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate">Advanced</span>
+          <span className="text-xs text-slate">{showAdvanced ? "Hide −" : "Show +"}</span>
+        </button>
+        {showAdvanced && (
+          <div className="mt-4 space-y-4">
+            {advancedFields.map((field) => (
+              <FieldInput
+                key={field.key}
+                field={field}
+                value={inputs[field.key] as number}
+                error={errorFor(field.key)}
+                onChange={(raw) => handleNumberChange(field.key, raw)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

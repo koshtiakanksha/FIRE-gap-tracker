@@ -2,15 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import InputPanel from "./components/InputPanel";
 import MetricCard, { GapSummaryCard } from "./components/MetricCard";
 import ProgressBar from "./components/ProgressBar";
-import GrowthChart from "./components/GrowthChart";
+import ChartViewToggle from "./components/ChartViewToggle";
 import ReturnPathCards from "./components/ReturnPathCards";
+import RiskDiagnosisSection from "./components/RiskDiagnosisSection";
 import WhatMovesNeedle from "./components/WhatMovesNeedle";
 import ScenarioActions from "./components/ScenarioActions";
 import type { FireInputs, FireResults } from "./types/fire";
 import { calculateFireResults, calculateScenarioComparisons } from "./lib/fireCalculations";
+import { calculateMonteCarloSummary, DEFAULT_NUM_SIMULATIONS } from "./lib/monteCarlo";
+import { calculateSavingsRateRealism } from "./lib/savingsRealism";
+import { calculateSensitivityAnalysis } from "./lib/sensitivityAnalysis";
 import { validateFireInputs } from "./lib/validation";
 import { formatCurrency, formatPercent } from "./lib/formatters";
 import { loadInputsFromLocalStorage, saveInputsToLocalStorage, SAMPLE_INPUTS } from "./lib/scenarioStorage";
+import { useDebouncedValue } from "./lib/useDebouncedValue";
 
 function App() {
   const [inputs, setInputs] = useState<FireInputs>(() => loadInputsFromLocalStorage() ?? SAMPLE_INPUTS);
@@ -32,6 +37,36 @@ function App() {
     if (!isValid || !results) return null;
     return calculateScenarioComparisons(inputs, results);
   }, [inputs, isValid, results]);
+
+  // Monte Carlo (hundreds of multi-decade simulations) and sensitivity
+  // analysis (5 extra full pipeline runs) are both meaningfully more
+  // expensive than the instant deterministic dashboard above. Debouncing
+  // them keeps typing in the input panel feeling immediate — these two
+  // sections settle a moment after the user stops adjusting inputs, rather
+  // than recomputing on every single keystroke.
+  const debouncedInputs = useDebouncedValue(inputs, 400);
+  const debouncedIsValid = useMemo(() => validateFireInputs(debouncedInputs).length === 0, [debouncedInputs]);
+  const isRecalculatingRisk = isValid && JSON.stringify(inputs) !== JSON.stringify(debouncedInputs);
+
+  const monteCarlo = useMemo(() => {
+    if (!debouncedIsValid) return null;
+    return calculateMonteCarloSummary(debouncedInputs, DEFAULT_NUM_SIMULATIONS);
+  }, [debouncedInputs, debouncedIsValid]);
+
+  const debouncedResults = useMemo(() => {
+    if (!debouncedIsValid) return null;
+    return calculateFireResults(debouncedInputs);
+  }, [debouncedInputs, debouncedIsValid]);
+
+  const savingsRealism = useMemo(() => {
+    if (!debouncedResults) return null;
+    return calculateSavingsRateRealism(debouncedInputs, debouncedResults.requiredMonthlyInvestment);
+  }, [debouncedInputs, debouncedResults]);
+
+  const sensitivity = useMemo(() => {
+    if (!debouncedIsValid) return null;
+    return calculateSensitivityAnalysis(debouncedInputs);
+  }, [debouncedInputs, debouncedIsValid]);
 
   return (
     <div className="min-h-screen bg-paper">
@@ -106,7 +141,12 @@ function App() {
                   </p>
                 </div>
 
-                <GrowthChart combinedProjection={results.combinedProjection} currentAge={inputs.currentAge} />
+                <ChartViewToggle
+                  combinedProjection={results.combinedProjection}
+                  monteCarloChartPaths={monteCarlo?.chartPaths ?? []}
+                  numSimulations={monteCarlo?.numSimulations ?? DEFAULT_NUM_SIMULATIONS}
+                  currentAge={inputs.currentAge}
+                />
 
                 <ReturnPathCards
                   conservative={results.returnPaths.conservative}
@@ -116,6 +156,20 @@ function App() {
                 />
 
                 {comparisons && <WhatMovesNeedle comparisons={comparisons} />}
+
+                {monteCarlo && sensitivity ? (
+                  <div className={isRecalculatingRisk ? "opacity-60 transition-opacity" : "transition-opacity"}>
+                    <RiskDiagnosisSection
+                      monteCarlo={monteCarlo}
+                      savingsRealism={savingsRealism}
+                      sensitivity={sensitivity}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-paper-dim bg-white p-5 text-sm text-slate shadow-sm">
+                    Running the risk simulation…
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -154,9 +208,10 @@ function Footer() {
   return (
     <footer className="border-t border-paper-dim">
       <div className="mx-auto max-w-6xl px-4 py-6 text-xs text-slate sm:px-6 lg:px-8">
-        Projections grow expenses with inflation and model a conservative/base/optimistic return range, but still
-        don't account for taxes, account types, or real market volatility (no Monte Carlo simulation yet). Treat
-        this as a directional planning tool, not a forecast.
+        Projections grow expenses with inflation, model a conservative/base/optimistic return range, and now run a
+        Monte Carlo simulation with simplified, randomly-varying returns to estimate a probability range. This still
+        doesn't account for taxes or account types, and is not financial advice — treat it as a directional
+        planning tool, not a forecast.
       </div>
     </footer>
   );
