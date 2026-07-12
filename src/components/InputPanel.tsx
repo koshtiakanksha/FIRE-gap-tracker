@@ -29,7 +29,7 @@ const requiredFields: FieldConfig[] = [
 ];
 
 const optionalFields: FieldConfig[] = [
-  { key: "annualIncome", label: "Annual income", helperText: "Not used in calculations yet — for your own reference.", prefix: "$", step: 1000, min: 0 },
+  { key: "annualIncome", label: "Annual income", helperText: "Optional — not used in calculations until a future phase. For your own reference only.", prefix: "$", step: 1000, min: 0 },
 ];
 
 export default function InputPanel({ inputs, errors, onChange }: InputPanelProps) {
